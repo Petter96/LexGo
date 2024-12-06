@@ -8,7 +8,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -18,15 +18,136 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const WelcomePage(),
+      home: const SplashScreen(),
     );
   }
 }
 
-class WelcomePage extends StatefulWidget {
-  const WelcomePage({Key? key}) : super(key: key);
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
 
   @override
+  // ignore: library_private_types_in_public_api
+  _SplashScreenState createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _dropAnimation;
+  bool _showL = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    );
+
+    _dropAnimation = Tween<Offset>(
+      begin: const Offset(0, -1),
+      end: const Offset(0, 0.1),
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.bounceOut,
+    ));
+
+    _startAnimationSequence();
+  }
+
+  void _startAnimationSequence() async {
+    _controller.forward();
+
+    await Future.delayed(const Duration(seconds: 2));
+    setState(() {
+      _showL = true;
+    });
+
+    await Future.delayed(const Duration(seconds: 2));
+
+    _navigateToWelcomePage(); // Llamamos a la función con animación
+  }
+
+  void _navigateToWelcomePage() {
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 800),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation,
+            child: const WelcomePage(),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          SlideTransition(
+            position: _dropAnimation,
+            child: Center(
+              child: _buildDroplet(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDroplet() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 80,
+          height: 80,
+          decoration: const BoxDecoration(
+            color: Colors.transparent,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: _showL
+                ? const Text(
+                    'L',
+                    style: TextStyle(
+                      fontSize: 60,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'CustomFont',
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (_showL)
+          const CircularProgressIndicator(
+            color: Color(0xFFF5F5DC),
+          ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}
+
+class WelcomePage extends StatefulWidget {
+  const WelcomePage({super.key});
+
+  @override
+  // ignore: library_private_types_in_public_api
   _WelcomePageState createState() => _WelcomePageState();
 }
 
@@ -76,6 +197,7 @@ class _WelcomePageState extends State<WelcomePage> {
                     String? filePath = result.files.single.path;
                     if (filePath != null) {
                       Navigator.push(
+                        // ignore: use_build_context_synchronously
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
@@ -84,15 +206,45 @@ class _WelcomePageState extends State<WelcomePage> {
                       );
                     }
                   } else {
-                    // El usuario canceló la selección
-                    print('Selección de archivo cancelada');
+                    // ignore: use_build_context_synchronously
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('No se seleccionó ningún archivo')),
+                    );
                   }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text(
-                            'Se requieren permisos de almacenamiento para seleccionar archivos')),
-                  );
+                  if (await Permission.storage.request().isGranted) {
+                    FilePickerResult? result =
+                        await FilePicker.platform.pickFiles(
+                      type: FileType.custom,
+                      allowedExtensions: ['pdf'],
+                    );
+                    if (result != null) {
+                      String? filePath = result.files.single.path;
+                      if (filePath != null) {
+                        Navigator.push(
+                          // ignore: use_build_context_synchronously
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                PdfViewerPage(filePath: filePath),
+                          ),
+                        );
+                      }
+                    } else {
+                      // ignore: use_build_context_synchronously
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('No se seleccionó ningún archivo')),
+                      );
+                    }
+                  } else {
+                    // ignore: use_build_context_synchronously
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Permiso de almacenamiento denegado')),
+                    );
+                  }
                 }
               },
               child: const Text('Seleccionar PDF'),
